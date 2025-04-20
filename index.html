@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>حساب العمل اليومي</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 10px;
+            background-color: #f0f0f0;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: auto;
+        }
+
+        .date-section {
+            background-color: #fff;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        input, button {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        /* جعل الحقول في سطر واحد وبمسافة بسيطة */
+        .time-row {
+            display: flex;
+            gap: 20px; /* مسافة أفقية أكبر بين الحقول */
+            margin-bottom: 10px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            margin-bottom: 0;
+            /* Padding أفقي لتوسعة المسافة داخل كل خانة */
+            padding: 0 10px;
+        }
+
+        /* مسافة بين تاريخ البداية والنهاية */
+        .report-date-row {
+            display: flex;
+            gap: 15px; /* مسافة أفقية أكبر بين حقول التواريخ */
+            margin-bottom: 10px;
+        }
+
+        .report-range {
+            background-color: #fff;
+            padding: 10px;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            margin-bottom: 10px;
+        }
+
+        .report-range label {
+            margin-bottom: 5px;
+        }
+
+        /* التقرير مخفي افتراضيًا */
+        .report {
+            background-color: #fff;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .entry-item {
+            border-bottom: 1px solid #eee;
+            padding: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="date-section">
+            <h3>تاريخ اليوم: <span id="currentDate"></span></h3>
+            <div class="controls">
+                <button onclick="changeDate(-1)">اليوم السابق</button>
+                <button onclick="changeDate(1)">اليوم التالي</button>
+            </div>
+        </div>
+
+        <div class="time-row">
+            <!-- بداية وقت العمل -->
+            <div class="form-group">
+                <label for="startTime">بداية وقت العمل:</label>
+                <input 
+                    type="text" 
+                    id="startTime" 
+                    placeholder="مثل 912 => 09:12" 
+                    onblur="handleTimeBlur(event)"
+                >
+            </div>
+
+            <!-- نهاية وقت العمل -->
+            <div class="form-group">
+                <label for="endTime">نهاية وقت العمل:</label>
+                <input 
+                    type="text" 
+                    id="endTime" 
+                    placeholder="مثل 1532 => 15:32" 
+                    onblur="handleTimeBlur(event)"
+                >
+            </div>
+
+            <!-- إجمالي وقت العمل -->
+            <div class="form-group">
+                <label for="totalHours">إجمالي وقت العمل:</label>
+                <input type="number" id="totalHours" placeholder="(اختياري)">
+            </div>
+        </div>
+
+        <button onclick="saveEntry()">حفظ اليومية</button>
+
+        <!-- نطاق التقرير -->
+        <div class="report-range">
+            <div class="report-date-row">
+                <div class="form-group">
+                    <label for="reportStart">تاريخ البداية:</label>
+                    <input type="date" id="reportStart">
+                </div>
+                <div class="form-group">
+                    <label for="reportEnd">تاريخ النهاية:</label>
+                    <input type="date" id="reportEnd">
+                </div>
+            </div>
+            <button id="reportToggleBtn" onclick="toggleReport()">إظهار التقرير</button>
+        </div>
+
+        <div id="report" class="report"></div>
+    </div>
+
+    <script>
+        function fixDateToNoon(date) {
+            return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0);
+        }
+
+        let currentDate = fixDateToNoon(new Date());
+        const entries = JSON.parse(localStorage.getItem('workEntries') || '{}');
+
+        // تعيين قيم افتراضية لنطاق التقرير: من 20 الشهر الماضي إلى 21 الشهر الحالي.
+        function setDefaultReportRange() {
+            const today = new Date();
+            const defaultStart = new Date(today.getFullYear(), today.getMonth() - 1, 20, 12);
+            const defaultEnd = new Date(today.getFullYear(), today.getMonth(), 21, 12);
+
+            const reportStartEl = document.getElementById('reportStart');
+            const reportEndEl = document.getElementById('reportEnd');
+
+            if (!reportStartEl.value) {
+                reportStartEl.valueAsDate = defaultStart;
+            }
+            if (!reportEndEl.value) {
+                reportEndEl.valueAsDate = defaultEnd;
+            }
+        }
+
+        function getLocalDateKey(date) {
+            const localDate = fixDateToNoon(date);
+            const y = localDate.getFullYear();
+            const m = String(localDate.getMonth() + 1).padStart(2, '0');
+            const d = String(localDate.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        }
+
+        function parseLocalDateKey(dateString) {
+            const [year, month, day] = dateString.split('-').map(Number);
+            return new Date(year, month - 1, day, 12);
+        }
+
+        function updateDateDisplay() {
+            const options = {
+                year: 'numeric',
+                month: 'numeric',
+                day: 'numeric',
+                hour12: false
+            };
+            document.getElementById('currentDate').textContent = currentDate.toLocaleDateString('ar-EG', options);
+        }
+
+        function changeDate(days) {
+            currentDate = new Date(
+                currentDate.getFullYear(),
+                currentDate.getMonth(),
+                currentDate.getDate() + days,
+                12
+            );
+            updateDateDisplay();
+            loadSavedData();
+        }
+
+        function formatInputToHHMM(rawInput) {
+            const digits = rawInput.replace(/\D/g, '');
+            if (!digits) return '';
+
+            let hoursPart = '0';
+            let minsPart = '0';
+
+            if (digits.length <= 2) {
+                minsPart = digits;
+            } else {
+                minsPart = digits.slice(-2);
+                hoursPart = digits.slice(0, -2);
+            }
+            const hh = parseInt(hoursPart, 10);
+            const mm = parseInt(minsPart, 10);
+            if (hh > 23 || mm > 59) {
+                return '';
+            }
+            const hhStr = String(hh).padStart(2, '0');
+            const mmStr = String(mm).padStart(2, '0');
+            return `${hhStr}:${mmStr}`;
+        }
+
+        function handleTimeBlur(e) {
+            const formatted = formatInputToHHMM(e.target.value);
+            e.target.value = formatted;
+            calculateHours();
+        }
+
+        function timeToDecimal(timeString) {
+            if (!timeString || !timeString.includes(':')) {
+                return null;
+            }
+            const [hh, mm] = timeString.split(':').map(Number);
+            if (isNaN(hh) || isNaN(mm)) {
+                return null;
+            }
+            return hh + mm / 60;
+        }
+
+        function calculateHours() {
+            const startVal = document.getElementById('startTime').value;
+            const endVal = document.getElementById('endTime').value;
+
+            const startDecimal = timeToDecimal(startVal);
+            const endDecimal = timeToDecimal(endVal);
+
+            if (startDecimal !== null && endDecimal !== null) {
+                const total = endDecimal - startDecimal;
+                document.getElementById('totalHours').value = total.toFixed(2);
+            }
+        }
+
+        function saveEntry() {
+            const startVal = document.getElementById('startTime').value;
+            const endVal = document.getElementById('endTime').value;
+            const totalVal = parseFloat(document.getElementById('totalHours').value) || 0;
+
+            const entry = {
+                start: startVal,
+                end: endVal,
+                total: totalVal,
+                money: totalVal * 145
+            };
+
+            const dateKey = getLocalDateKey(currentDate);
+            entries[dateKey] = entry;
+            localStorage.setItem('workEntries', JSON.stringify(entries));
+            alert('تم الحفظ بنجاح!');
+        }
+
+        function loadSavedData() {
+            const dateKey = getLocalDateKey(currentDate);
+            const entry = entries[dateKey] || {};
+
+            document.getElementById('startTime').value = entry.start || '';
+            document.getElementById('endTime').value = entry.end || '';
+            document.getElementById('totalHours').value = entry.total || '';
+        }
+
+        function generateReport() {
+            const reportDiv = document.getElementById('report');
+            let grandTotal = 0;
+            let grandMoney = 0;
+
+            const reportStartEl = document.getElementById('reportStart');
+            const reportEndEl = document.getElementById('reportEnd');
+
+            let startDate = reportStartEl.valueAsDate;
+            let endDate = reportEndEl.valueAsDate;
+
+            const today = new Date();
+            const defaultStart = new Date(today.getFullYear(), today.getMonth() - 1, 20, 12);
+            const defaultEnd = new Date(today.getFullYear(), today.getMonth(), 21, 12);
+
+            if (!startDate) {
+                startDate = defaultStart;
+            } else {
+                startDate.setHours(12, 0, 0, 0);
+            }
+            if (!endDate) {
+                endDate = defaultEnd;
+            } else {
+                endDate.setHours(12, 0, 0, 0);
+            }
+
+            let tableHtml = `\n              <h3>التقرير الشهري:</h3>\n              <table style=\"width:100%; border-collapse: collapse; text-align: center; margin-top: 10px;\">\n                <thead>\n                  <tr style=\"background:#f7f7f7;\">\n                    <th style='border:1px solid #ccc; padding:8px;'>التاريخ</th>\n                    <th style='border:1px solid #ccc; padding:8px;'>الوقت</th>\n                    <th style='border:1px solid #ccc; padding:8px;'>إجمالي الساعات</th>\n                    <th style='border:1px solid #ccc; padding:8px;'>إجمالي المبلغ</th>\n                    <th style='border:1px solid #ccc; padding:8px;'>حذف</th>\n                  </tr>\n                </thead>\n                <tbody>\n            `;
+
+            let rows = '';
+
+            const validEntries = [];
+            Object.entries(entries).forEach(([dateStr, entry]) => {
+                const entryDate = parseLocalDateKey(dateStr);
+                if (entryDate >= startDate && entryDate <= endDate) {
+                    validEntries.push({ dateStr, entryDate, entry });
+                }
+            });
+
+            validEntries.sort((a, b) => a.entryDate - b.entryDate);
+
+            validEntries.forEach(({ dateStr, entryDate, entry }) => {
+                grandTotal += entry.total;
+                grandMoney += entry.money;
+
+                const dateFormatted = entryDate.toLocaleDateString('ar-EG', {
+                    year: 'numeric',
+                    month: 'numeric',
+                    day: 'numeric',
+                    hour12: false
+                });
+
+                rows += `\n                  <tr>\n                    <td style='border:1px solid #ccc; padding:8px;'>${dateFormatted}</td>\n                    <td style='border:1px solid #ccc; padding:8px;'>${entry.start} - ${entry.end}</td>\n                    <td style='border:1px solid #ccc; padding:8px;'>${entry.total.toFixed(2)}</td>\n                    <td style='border:1px solid #ccc; padding:8px;'>${entry.money.toFixed(2)}</td>\n                    <td style='border:1px solid #ccc; padding:8px;'>\n                      <button style='background-color: #f44336; color: #fff; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer;' onclick=\"removeEntry('${dateStr}','${dateFormatted}')\">مسح</button>\n                    </td>\n                  </tr>\n                `;
+            });
+
+            if (!rows) {
+                rows = `<tr><td colspan='5' style='border:1px solid #ccc; padding:8px;'>لا توجد سجلات في النطاق المحدد.</td></tr>`;
+            }
+
+            const footerRow = `\n              <tr style='font-weight:bold; background:#f7f7f7;'>\n                <td colspan='2' style='border:1px solid #ccc; padding:8px;'>الإجمالي</td>\n                <td style='border:1px solid #ccc; padding:8px;'>${grandTotal.toFixed(2)}</td>\n                <td style='border:1px solid #ccc; padding:8px;'>${grandMoney.toFixed(2)}</td>\n                <td style='border:1px solid #ccc; padding:8px;'></td>\n              </tr>\n            `;
+
+            tableHtml += rows + footerRow + `</tbody></table>`;
+            reportDiv.innerHTML = tableHtml;
+        }
+
+        function toggleReport() {
+            const reportDiv = document.getElementById('report');
+            const toggleButton = document.getElementById('reportToggleBtn');
+            if (reportDiv.style.display === 'none' || !reportDiv.style.display) {
+                generateReport();
+                reportDiv.style.display = 'block';
+                toggleButton.textContent = 'إخفاء التقرير';
+            } else {
+                reportDiv.style.display = 'none';
+                toggleButton.textContent = 'إظهار التقرير';
+            }
+        }
+
+        function removeEntry(dateKey, dateDisplayed) {
+            if(!confirm(`هل أنت متأكد من مسح هذا السجل بتاريخ ${dateDisplayed}؟`)) return;
+            delete entries[dateKey];
+            localStorage.setItem('workEntries', JSON.stringify(entries));
+            generateReport();
+            alert("تم الحذف بنجاح!");
+        }
+
+        document.getElementById('totalHours').addEventListener('input', function() {
+            document.getElementById('startTime').value = '';
+            document.getElementById('endTime').value = '';
+        });
+
+        updateDateDisplay();
+        loadSavedData();
+        setDefaultReportRange();
+    </script>
+</body>
+</html>
