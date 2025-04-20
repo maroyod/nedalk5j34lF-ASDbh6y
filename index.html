@@ -5,6 +5,42 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>حساب العمل اليومي</title>
     <style>
+          /* أنماط صفحة الدخول فقط */
+          #loginWrapper {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+        
+        .login-box {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            width: 300px;
+            text-align: center;
+        }
+        
+        .login-input {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+        }
+        
+        .login-btn {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            cursor: pointer;
+        }
         body {
             font-family: Arial, sans-serif;
             padding: 10px;
@@ -100,6 +136,16 @@
     </style>
 </head>
 <body>
+      <!-- صفحة الدخول -->
+      <div id="loginWrapper">
+        <div class="login-box">
+            <h3>تسجيل الدخول</h3>
+            <input type="text" id="username" class="login-input" placeholder="اسم المستخدم">
+            <input type="password" id="password" class="login-input" placeholder="كلمة المرور">
+            <button class="login-btn" onclick="checkLogin()">دخول</button>
+            <p id="loginError" style="color:red; display:none;">بيانات الدخول غير صحيحة!</p>
+        </div>
+    </div>
     <div class="container">
         <div class="date-section">
             <h3>تاريخ اليوم: <span id="currentDate"></span></h3>
@@ -160,6 +206,21 @@
     </div>
 
     <script>
+        function checkLogin() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            if(username === 'nedal' && password === 'hasan') {
+                document.getElementById('loginWrapper').style.display = 'none';
+            } else {
+                document.getElementById('loginError').style.display = 'block';
+            }
+        }
+        
+        // إخفاء الموقع حتى الدخول
+        document.addEventListener('DOMContentLoaded', () => {
+            document.body.style.overflow = 'hidden';
+        });
         function fixDateToNoon(date) {
             return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0);
         }
